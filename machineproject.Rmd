@@ -1,0 +1,127 @@
+---
+title: "machine learning course project"
+author: "aim"
+date: "Thursday, Sep 26, 2015"
+output: html_document
+---
+
+## synopsis
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+#Data 
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+
+## read data
+The data was downloaded to the working directory to speed up execution.
+
+```{r }
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+#
+trainRaw <- read.csv("pml-training.csv",na.strings=c('NA','','#DIV/0!'))
+testRaw <- read.csv("pml-testing.csv",na.strings=c('NA','','#DIV/0!'))
+trainRaw$classe <- as.factor(trainRaw$classe)
+dim(trainRaw)
+dim(testRaw)
+```
+
+## clean data
+Remove the columns with NA values. 
+Remove the first columns which are not needed.
+
+```{r, eval=TRUE}
+#
+NAindex <- apply(trainRaw,2,function(x) {sum(is.na(x))}) 
+trainRaw <- trainRaw[,which(NAindex == 0)]
+#                   
+trainRaw = trainRaw[,-c(1:7)]
+#
+names1 <- colnames(trainRaw)
+names2 <- colnames(trainRaw[, -53])  # remove the classe column
+#names2
+testRaw <- testRaw[names2] # use the same columns for test
+
+str(trainRaw)
+dim(trainRaw)
+dim(testRaw)
+
+```
+The remaining train data has 53 columns out of the 160 in the original given raw data.
+
+## split data into train and test by using 60% of the data for building the model.
+
+```{r}
+library(caret) 
+set.seed(12345)
+# partition data
+inTrain <- createDataPartition(trainRaw$classe, p=0.60, list=F)
+trainData <- trainRaw[inTrain, ]
+testData <- trainRaw[-inTrain, ]
+```
+
+
+## build models (random forests, decision tree) and compare them
+
+```{r}
+if (file.exists("model1.rda")) {
+  load("model1.rda")
+} else {
+  model1 <- train(classe ~ ., data=trainData, method="rf")
+  save(model1, file="model1.rda") 
+}
+
+if (file.exists("model2.rda")) {
+  load("model2.rda")
+} else {
+
+  model2 <- rpart(classe ~ ., data=trainData, method="class")
+  save(model2, file="model2.rda") 
+  }
+
+plot(model1)
+#
+rpart.plot(model2)
+```
+
+
+## predict accuracy using the models on the testData, cross validate and compare accuracy of the models
+```{r}
+predict_m1 <- predict(model1, testData)
+cm_m1 <- confusionMatrix(predict_m1, testData$classe)
+cm_m1
+
+predict_m2 <- predict(model2, testData, type="class")
+cm_m2 <- confusionMatrix(predict_m2, testData$classe)
+cm_m2
+```
+As the rf model yields much better results (0.99 accuracy) we use it for the evaluation of the final data.
+
+
+## calculate prediction on the classe variable for the given 20 test data
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+predict_test <- predict(model1, testRaw)
+predict_test
+
+#pml_write_files(predict_test)
+```
+
+
+
+
